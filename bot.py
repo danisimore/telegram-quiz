@@ -1,5 +1,6 @@
 import asyncio
 import os
+import json
 
 from aiogram.enums import ParseMode
 from aiogram import Dispatcher, Bot, types
@@ -15,6 +16,8 @@ from keyboards.keyboard import keyboard
 from filters.message_text_filter import MessageTextFilter
 
 from services.check_answer import is_answer_correct
+from services.write_data import write_json
+
 
 load_dotenv(dotenv_path=".env")
 
@@ -26,6 +29,11 @@ bot = Bot(TOKEN, parse_mode=ParseMode.HTML)
 dp = Dispatcher()
 router = Router()
 
+with open("./data/users_statistic.json") as data_file:
+    user_data = json.load(data_file)
+
+current_user_quiz_statistic = {}
+
 quiz_counter = 0
 
 
@@ -36,22 +44,39 @@ async def cmd_start(message: types.Message) -> None:
 
 @dp.message(MessageTextFilter("Сыграем!"))
 async def lets_play(message: types.Message) -> None:
-    await bot.send_poll(
-        message.chat.id,
-        'Первый вопрос: Как назывался особый головной убор, который носили фараоны в Древнем Египте?',
-        ['Картуз', 'Немес', 'Корона', 'Убрус'],
-        type='quiz',
-        correct_option_id=1,
-        is_anonymous=False,
-    )
+    global user_data
+    global current_user_quiz_statistic
+
+    if message.chat.username in user_data:
+        await message.answer("Вы уже проходили опрос!")
+    else:
+        current_user_quiz_statistic[message.chat.username] = {
+            "correct_answers": 0,
+            "incorrect_answers": 0
+        }
+
+        await bot.send_poll(
+            message.chat.id,
+            'Первый вопрос: Как назывался особый головной убор, который носили фараоны в Древнем Египте?',
+            ['Картуз', 'Немес', 'Корона', 'Убрус'],
+            type='quiz',
+            correct_option_id=1,
+            is_anonymous=False,
+        )
 
 
 @dp.poll_answer()
 async def handle_poll_answer(quiz_answer: PollAnswer):
     global quiz_counter
+    global user_data
 
     if quiz_counter == 0:
-        await is_answer_correct(quiz_answer=quiz_answer, correct_index=[1], bot=bot)
+        is_correct = await is_answer_correct(quiz_answer=quiz_answer, correct_index=[1], bot=bot)
+
+        if is_correct:
+            current_user_quiz_statistic[quiz_answer.user.username]["correct_answers"] += 1
+        else:
+            current_user_quiz_statistic[quiz_answer.user.username]["incorrect_answers"] += 1
 
         quiz_counter += 1
 
@@ -65,7 +90,12 @@ async def handle_poll_answer(quiz_answer: PollAnswer):
         )
 
     elif quiz_counter == 1:
-        await is_answer_correct(quiz_answer=quiz_answer, correct_index=[2], bot=bot)
+        is_correct = await is_answer_correct(quiz_answer=quiz_answer, correct_index=[2], bot=bot)
+
+        if is_correct:
+            current_user_quiz_statistic[quiz_answer.user.username]["correct_answers"] += 1
+        else:
+            current_user_quiz_statistic[quiz_answer.user.username]["incorrect_answers"] += 1
 
         quiz_counter += 1
 
@@ -79,7 +109,12 @@ async def handle_poll_answer(quiz_answer: PollAnswer):
         )
 
     elif quiz_counter == 2:
-        await is_answer_correct(quiz_answer=quiz_answer, correct_index=[0], bot=bot)
+        is_correct = await is_answer_correct(quiz_answer=quiz_answer, correct_index=[0], bot=bot)
+
+        if is_correct:
+            current_user_quiz_statistic[quiz_answer.user.username]["correct_answers"] += 1
+        else:
+            current_user_quiz_statistic[quiz_answer.user.username]["incorrect_answers"] += 1
 
         quiz_counter += 1
 
@@ -93,7 +128,12 @@ async def handle_poll_answer(quiz_answer: PollAnswer):
         )
 
     elif quiz_counter == 3:
-        await is_answer_correct(quiz_answer=quiz_answer, correct_index=[2], bot=bot)
+        is_correct = await is_answer_correct(quiz_answer=quiz_answer, correct_index=[3], bot=bot)
+
+        if is_correct:
+            current_user_quiz_statistic[quiz_answer.user.username]["correct_answers"] += 1
+        else:
+            current_user_quiz_statistic[quiz_answer.user.username]["incorrect_answers"] += 1
 
         quiz_counter += 1
 
@@ -107,15 +147,26 @@ async def handle_poll_answer(quiz_answer: PollAnswer):
         )
 
     elif quiz_counter == 4:
-        await is_answer_correct(quiz_answer=quiz_answer, correct_index=[3], bot=bot, last_question=True)
+        is_correct = await is_answer_correct(
+            quiz_answer=quiz_answer,
+            correct_index=[3],
+            bot=bot,
+            last_question=True,
+        )
+
+        if is_correct:
+            current_user_quiz_statistic[quiz_answer.user.username]["correct_answers"] += 1
+        else:
+            current_user_quiz_statistic[quiz_answer.user.username]["incorrect_answers"] += 1
+
         quiz_counter = 0
+
+        write_json(user_data=current_user_quiz_statistic, username=quiz_answer.user.username)
 
 
 async def main():
     await dp.start_polling(bot)
 
-
-# router.message.register(cmd_start, Command("start"))
 
 if __name__ == "__main__":
     asyncio.run(main())
